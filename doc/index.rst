@@ -13,6 +13,8 @@ Welcome to noashark's documentation!
    README.rst
    install.rst
 
+   gallery.rst
+
 Indices and tables
 ==================
 
