@@ -18,11 +18,11 @@ install_requires = [x.strip() for x in all_reqs if 'git+' not in x]
 dependency_links = [x.strip().replace('git+', '') for x in all_reqs if 'git+' not in x]
 
 setup(
-    name='noah',
+    name='noashark',
     version=__version__,
     description='work with NOAA sea level rise data',
     long_description=long_description,
-    url='https://github.com/swfiua/blume',
+    url='https://github.com/swfiua/noashark',
     license='GPL v 3',
     classifiers = [
       'Development Status :: 4 - Beta',

@@ -18,14 +18,14 @@ code.  It is a pure python project and still evolving::
 
 Installing *blume* should get you a copy of matplotlib too.
 
-Noah
-====
+Noashark
+========
 
-Now to install *noah*, it is the same process as for blume::
+Now to install *noashark*, it is the same process as for blume::
 
-  git clone https://github.com/swfiua/noah
+  git clone https://github.com/swfiua/noashark
 
-  cd noah
+  cd noashark
 
   python3 -m pip install -e .
 
