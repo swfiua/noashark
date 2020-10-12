@@ -44,8 +44,8 @@ class Dem(magic.Ball):
 
         while True:
             # random tiles
-            xoff = random.randint(0, self.radius)
-            yoff = random.randint(0, self.radius)
+            xoff = self.xoff + random.randint(-self.radius, self.radius)
+            yoff = self.yoff + random.randint(-self.radius, self.radius)
         
             square = band.ReadAsArray(
                 xoff = xoff,
@@ -62,6 +62,10 @@ class Dem(magic.Ball):
             #print(counts.most_common(10))
             if len(counts) > 2:
                 break
+
+            print(xoff, yoff)
+            print(counts)
+            break
 
         plt.imshow(square, cmap=magic.random_colour())
 
