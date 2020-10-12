@@ -6,3 +6,7 @@
 
 
 
+.. image:: images/getting_there.png
+
+
+
