@@ -22,6 +22,7 @@ class Dem(magic.Ball):
         parser.add_argument('-size', type=int, default=1000)
         parser.add_argument('-xoff', type=int, default=0)
         parser.add_argument('-yoff', type=int, default=0)
+        parser.add_argument('-radius', type=int, default=10000)
 
         self.update(parser.parse_args(args))
 
@@ -38,27 +39,27 @@ class Dem(magic.Ball):
     async def run(self):
 
         # get a square from the image
-        print(self.xoff, self.yoff, self.size)
+        #print(self.xoff, self.yoff, self.size)
         band = self.tif.GetRasterBand(1)
 
         while True:
             # random tiles
-            self.xoff = min(random.randint(0, self.zoom) * self.size, band.XSize)
-            self.yoff = min(random.randint(0, self.zoom) * self.size, band.YSize)
+            xoff = random.randint(0, self.radius)
+            yoff = random.randint(0, self.radius)
         
             square = band.ReadAsArray(
-                xoff = self.xoff,
-                yoff = self.yoff,
+                xoff = xoff,
+                yoff = yoff,
                 win_xsize = self.size,
                 win_ysize = self.size)
 
             if square is None:
-                print(self.xoff, self.yoff)
-                print(band.XSize, band.YSize)
+                #print(self.xoff, self.yoff)
+                #print(band.XSize, band.YSize)
                 continue
 
             counts = Counter(square.flatten())
-            print(counts.most_common(10))
+            #print(counts.most_common(10))
             if len(counts) > 2:
                 break
 
