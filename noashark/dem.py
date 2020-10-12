@@ -63,9 +63,6 @@ class Dem(magic.Ball):
             if len(counts) > 2:
                 break
 
-            print(xoff, yoff)
-            print(counts)
-            break
 
         plt.imshow(square, cmap=magic.random_colour())
 
