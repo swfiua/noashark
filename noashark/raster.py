@@ -3,7 +3,7 @@
 import argparse
 import gdal
 import curio
-import binascii
+import struct
 from collections import deque, Counter
 import numpy as np
 from blume import magic, farm
@@ -15,15 +15,22 @@ class Raster(magic.Ball):
     def set_args(self, args=None):
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('filename')
+        parser.add_argument('-row', type=int, default=450)
+        parser.add_argument('-col', type=int, default=350)
+        parser.add_argument('-size', type=int, default=10)
+        parser.add_argument('-xblock', type=int, default=128)
+        parser.add_argument('-yblock', type=int, default=128)
+        parser.add_argument('filenames', nargs='*')
 
         args = parser.parse_args(None)
 
         self.update(args)
 
+        self.filenames = deque(args.filenames)
+
     async def run(self):
-        
-        db = gdal.ogr.Open(self.filename)
+
+        db = gdal.ogr.Open(self.filenames[0])
 
         print(db.name)
 
@@ -31,57 +38,67 @@ class Raster(magic.Ball):
 
         layer = db.GetLayer(0)
 
-        print(layer.GetExtent())
-        print(layer.GetFeatureCount())
-
-        feature = layer.GetFeature(1)
-        print(layer.GetFeaturesRead())
-
-        rcounts = Counter()
-        ccounts = Counter()
-
-        rows = []
         area = np.zeros((500, 500))
-        
-        for ix in range(layer.GetFeatureCount()):
-            f = layer.GetFeature(ix+1)
-            block = f.GetFieldAsBinary('block_data')
-            row = f.GetFieldAsInteger(2)
-            col = f.GetFieldAsInteger(3)
+        section = np.zeros((500, 500))
+
+        gridsize = self.size +1
+        grid = np.zeros((gridsize * self.xblock, gridsize * self.yblock))
+
+        blocks = {}
+        for fix in range(layer.GetFeatureCount()):
+
+            feature = layer.GetFeature(fix + 1)
+            row = feature['row_nbr']
+            col = feature['col_nbr']
 
             area[row][col] += 1
-            #if True:
-            if col == 203:
-                #print(row)
-                #print(f'block of length {len(block)}')
+            
+            if row < self.row or row > self.row + self.size:
+                continue
 
-                #print(binascii.unhexlify(block[:-3]))
-                arow = [int(x) for x in block]
-                print(arow[:10])
-                rows.append(arow[:1000])
+            if col < self.col or col > self.col + self.size:
+                continue
 
-            rcounts.update([row])
-            ccounts.update([col])
+            block = feature.GetFieldAsBinary('block_data')
 
-        rowlen = len(rows[0])
-        rowlens = Counter(len(r) for r in rows)
-        print(rowlens)
+            arow = struct.unpack("<16384I", block[:struct.calcsize("16384i")])
 
-        plt.imshow(area)
+            #print(row, col, feature['block_key'], type(feature['block_key']),
+            #      feature['rasterband_id'],
+            #      feature['rrd_factor'])
+            section[row][col] += 1
+
+            array = np.array(arow)
+
+            array = array.reshape((self.xblock, self.yblock))
+
+            row -= self.row
+            col -= self.col
+            size = self.size
+            xb = self.xblock
+            yb = self.yblock
+            grid[row * xb: (row + 1) * xb, col * yb: (col + 1) * yb] = array
+            await curio.sleep(0.001)
+            
+            #counts = Counter(arow)
+            #print(len(counts))
+            #print(counts.most_common(20))
+
+        plt.imshow(grid)
+        plt.title(self.filenames[0])
+        plt.colorbar()
         await self.put()
+
+        #plt.imshow(area)
+        #plt.colorbar()
+        #await self.put()
+
+        #plt.imshow(section)
+        #plt.colorbar()
+        #await self.put()
         
-        print('number of rows', len(rows), len(rows[0]))
-        xx = np.array(rows)
-        print(xx.shape)
-        plt.imshow(rows)
-        await self.put()
-                        
-        print(len(rcounts))
-        print(len(ccounts))
-        print(np.mean([x for x in rcounts.values()]))
-        print(np.mean([x for x in ccounts.values()]))
-        print(rcounts.most_common(10))
-        print(ccounts.most_common(10))
+        self.filenames.rotate()
+
 
 async def run(fm):
 
