@@ -20,7 +20,7 @@ class Raster(magic.Ball):
         parser.add_argument('-size', type=int, default=10)
         parser.add_argument('-xblock', type=int, default=128)
         parser.add_argument('-yblock', type=int, default=128)
-        parser.add_argument('-mask', type=int, default=255)
+        parser.add_argument('-mask', type=int, default=0xff00)
         parser.add_argument('-shift', type=int, default=0)
         parser.add_argument('filenames', nargs='*')
 
@@ -49,12 +49,15 @@ class Raster(magic.Ball):
         blocks = {}
         for fix in range(layer.GetFeatureCount()):
 
+            # fixme: need a mapping from {row, col} to feature index. this should speed things up
+            # a fair bit.
             feature = layer.GetFeature(fix + 1)
             row = feature['row_nbr']
             col = feature['col_nbr']
 
             area[row][col] += 1
-            
+
+            # see above -- things would be quicker with the index
             if row < self.row or row > self.row + self.size:
                 continue
 
@@ -70,7 +73,7 @@ class Raster(magic.Ball):
             #      feature['rrd_factor'])
             section[row][col] += 1
 
-            array = np.array(arow)
+            array = np.array([(x & self.mask) >> self.shift for x in arow])
             print(array[0], arow[0])
 
             array = array.reshape((self.xblock, self.yblock))
@@ -85,42 +88,6 @@ class Raster(magic.Ball):
             
             #counts = Counter(arow)
             #print(len(counts))
-            #print(counts.most_common(20))
-            
-            #if len(block) > 128 * 128 * 4:
-            if False:
-                
-                if row == 8 and col == 10:
-                    for y in range(5):
-                        for x in range(2):
-                            bb = bin(array[y + (size//2)][x])
-                            pad = 34 - len(bb)
-                            print(('0' * pad) + bb[2:], end=' ')
-                        print()
-                else:
-                    pass
-                
-                bitmap = np.zeros((128, 4096))
-
-                for ir, rrr in enumerate(array):
-                    ic = 0
-                    for ccc in rrr:
-                        for x in range(31, 0, -1):
-                            bitmap[ir][ic] = (ccc >> x) & 1
-                            ic += 1
-                print(bitmap[0])
-                print(array.shape)
-                
-                #xx = struct.unpack("<512i", block[128*128*4:])
-                plt.imshow(bitmap)
-                plt.colorbar()
-                plt.title(f'{len(block)} {row} {col}')
-                await self.put()
-                
-                #plt.title(f'{len(block)} {row} {col}')
-                #plt.imshow(np.array(xx).reshape((16,32)))
-                #plt.colorbar()
-                #await self.put()
 
         plt.imshow(grid)
         print(arow[:20])
