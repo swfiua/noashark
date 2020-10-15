@@ -20,6 +20,8 @@ class Raster(magic.Ball):
         parser.add_argument('-size', type=int, default=10)
         parser.add_argument('-xblock', type=int, default=128)
         parser.add_argument('-yblock', type=int, default=128)
+        parser.add_argument('-mask', type=int, default=255)
+        parser.add_argument('-shift', type=int, default=0)
         parser.add_argument('filenames', nargs='*')
 
         args = parser.parse_args(None)
@@ -42,7 +44,7 @@ class Raster(magic.Ball):
         section = np.zeros((500, 500))
 
         gridsize = self.size +1
-        grid = np.zeros((gridsize * self.xblock, gridsize * self.yblock))
+        grid = np.zeros((gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32)
 
         blocks = {}
         for fix in range(layer.GetFeatureCount()):
@@ -69,6 +71,7 @@ class Raster(magic.Ball):
             section[row][col] += 1
 
             array = np.array(arow)
+            print(array[0], arow[0])
 
             array = array.reshape((self.xblock, self.yblock))
 
@@ -78,13 +81,51 @@ class Raster(magic.Ball):
             xb = self.xblock
             yb = self.yblock
             grid[row * xb: (row + 1) * xb, col * yb: (col + 1) * yb] = array
-            await curio.sleep(0.001)
+            await curio.sleep(self.sleep * 0.001)
             
             #counts = Counter(arow)
             #print(len(counts))
             #print(counts.most_common(20))
+            
+            #if len(block) > 128 * 128 * 4:
+            if False:
+                
+                if row == 8 and col == 10:
+                    for y in range(5):
+                        for x in range(2):
+                            bb = bin(array[y + (size//2)][x])
+                            pad = 34 - len(bb)
+                            print(('0' * pad) + bb[2:], end=' ')
+                        print()
+                else:
+                    pass
+                
+                bitmap = np.zeros((128, 4096))
+
+                for ir, rrr in enumerate(array):
+                    ic = 0
+                    for ccc in rrr:
+                        for x in range(31, 0, -1):
+                            bitmap[ir][ic] = (ccc >> x) & 1
+                            ic += 1
+                print(bitmap[0])
+                print(array.shape)
+                
+                #xx = struct.unpack("<512i", block[128*128*4:])
+                plt.imshow(bitmap)
+                plt.colorbar()
+                plt.title(f'{len(block)} {row} {col}')
+                await self.put()
+                
+                #plt.title(f'{len(block)} {row} {col}')
+                #plt.imshow(np.array(xx).reshape((16,32)))
+                #plt.colorbar()
+                #await self.put()
 
         plt.imshow(grid)
+        print(arow[:20])
+        print(grid[0])
+        print(grid[64])
         plt.title(self.filenames[0])
         plt.colorbar()
         await self.put()
