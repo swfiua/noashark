@@ -44,7 +44,12 @@ class Raster(magic.Ball):
         section = np.zeros((500, 500))
 
         gridsize = self.size +1
-        grid = np.zeros((gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32)
+        grids = [
+            np.zeros((gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32),
+            np.zeros((gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32),
+            np.zeros((gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32),
+            np.zeros((gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32)]
+                
 
         blocks = {}
         for fix in range(layer.GetFeatureCount()):
@@ -66,44 +71,56 @@ class Raster(magic.Ball):
 
             block = feature.GetFieldAsBinary('block_data')
 
-            arow = struct.unpack("<16384I", block[:struct.calcsize("16384i")])
+            arow = struct.unpack("<16384i", block[:struct.calcsize("16384i")])
 
             #print(row, col, feature['block_key'], type(feature['block_key']),
             #      feature['rasterband_id'],
             #      feature['rrd_factor'])
             section[row][col] += 1
 
-            array = np.array([(x & self.mask) >> self.shift for x in arow])
-            print(array[0], arow[0])
-
-            array = array.reshape((self.xblock, self.yblock))
 
             row -= self.row
             col -= self.col
             size = self.size
             xb = self.xblock
             yb = self.yblock
-            grid[row * xb: (row + 1) * xb, col * yb: (col + 1) * yb] = array
-            await curio.sleep(self.sleep * 0.001)
+            
+            arrays = []
+            shifts = (0, 8, 16, 24)
+            masks = (0xff, 0xff, 0xffff)
+            for ix, shift in enumerate(shifts):
+                array = np.array([(x & (255 << shift)) >> shift for x in arow])
+
+
+                if shift == 0:
+                    array = np.where(array == 255, 0, array)
+                    array = np.where(array < 55, 55, array)
+                array = array.reshape((self.xblock, self.yblock))
+
+                arrays.append(array)
+
+
+
+                grids[ix][row * xb: (row + 1) * xb, col * yb: (col + 1) * yb] = array
+                await curio.sleep(self.sleep * 0.001)
             
             #counts = Counter(arow)
             #print(len(counts))
 
-        plt.imshow(grid)
-        print(arow[:20])
-        print(grid[0])
-        print(grid[64])
-        plt.title(self.filenames[0])
+        for shift, grid in zip(shifts, grids):
+            plt.imshow(grid)
+
+            plt.title(self.filenames[0] + f'shift:{shift}')
+            plt.colorbar()
+            await self.put()
+
+        plt.imshow(area)
         plt.colorbar()
         await self.put()
 
-        #plt.imshow(area)
-        #plt.colorbar()
-        #await self.put()
-
-        #plt.imshow(section)
-        #plt.colorbar()
-        #await self.put()
+        plt.imshow(section)
+        plt.colorbar()
+        await self.put()
         
         self.filenames.rotate()
 
