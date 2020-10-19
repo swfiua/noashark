@@ -61,18 +61,33 @@ class Shark:
         layers=4,
     )
     
-    def __init__(self, path='.'):
+    def __init__(self, path='.', name='MA'):
 
         self.path = Path(path)
 
+        self.depths = list(range(0, 11))
 
-        pprint(read_database(self.path, 1))
+        self.name = name
+        
+        pprint(self.load_table(1).head(20))
 
-        tables = self.load_table(1)
-        for name in tables.Name:
+        tables = self.load_table(self.TABLES['catalog'])
+        print(tables.index)
+        table_lookup = {}
+        for ix,name in enumerate(tables.Name):
+            table_lookup[name] = ix + 1
             print(name)
+
+        self.table_lookup = table_lookup
         return
 
+        config = self.load_table(self.TABLES['config'])
+        print(config.head())
+
+        coords = self.load_table(self.TABLES['coords'])
+        print(coords.head())
+
+        layers = self.load_table(self.TABLES['layers'])
         
         for database in sorted(self.path.glob('*.gdbtable')):
             print(database)
@@ -83,6 +98,19 @@ class Shark:
     def load_table(self, n=1):
         """ Load a table """
         df = geopandas.read_file(self.path / f'a{n:08x}.gdbtable')
+        return df
+
+    def make_index(self):
+
+        for depth in self.depths:
+            df = self.get_table(depth)
+
+    def get_table(depth):
+
+        name = f'{self.name}_slrLdepth_{depth}ft'
+
+        df = open_database(self.path, self.table_lookup[name])
+
         return df
                                
 def open_database(path, n):
