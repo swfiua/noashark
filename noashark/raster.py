@@ -4,18 +4,17 @@ import argparse
 from pathlib import Path
 import struct
 from collections import deque, Counter
+import functools
 
 import gdal
+
+from PIL import Image
 
 import numpy as np
 from blume import magic, farm
 
 from matplotlib import pyplot as plt
 
-class Shark:
-
-    def __init__(self, path=None):
-        
 
 class Raster(magic.Ball):
 
@@ -39,7 +38,9 @@ class Raster(magic.Ball):
 
         self.filenames = deque(args.filenames)
 
-    def make_index(self):
+
+    @functools.lru_cache(maxsize=None)
+    def get_index(self, name):
 
         name = Path(self.filenames[0])
         
@@ -63,24 +64,30 @@ class Raster(magic.Ball):
 
         db = gdal.ogr.Open(self.filenames[0])
 
-        print(db.name)
+        name = db.name
+        print(name)
+        lookup = self.get_index(name)
 
         print('layers:', db.GetLayerCount())
 
         layer = db.GetLayer(0)
 
-        print('building index')
-        lookup = self.make_index(db)
-        print('index done', len(lookup))
 
         area = np.zeros((500, 500))
         section = np.zeros((500, 500))
 
         gridsize = self.size +1
-        grids = np.zeros((2, gridsize * self.xblock, gridsize * self.yblock), dtype=np.uint32)
     
         blocks = {}
         self.hits = 0
+
+        xb = self.xblock
+        yb = self.yblock
+
+        grids = [
+            np.zeros((gridsize * xb, gridsize * yb, 4), dtype=np.uint32),
+            np.zeros((gridsize * xb, gridsize * yb), dtype=np.uint32),
+            np.zeros((gridsize * xb, gridsize * yb), dtype=np.uint32)]
 
         #for fix in range(layer.GetFeatureCount()):
         for (row, col), fix in lookup.items():
@@ -116,10 +123,19 @@ class Raster(magic.Ball):
             #for slice in block[::2], block[1::2]:
 
             #for slice in block[3::4], block[2::4]:
+
+            channel = np.array(struct.unpack(f'{len(block)}B', block))
+            rgba = channel[:xb*yb*4].reshape((xb, yb, 4))
+            channels.append(rgba)
+
+            img = Image.frombytes('CMYK', (xb, yb), block)
+            plt.imshow(img)
+            await self.put()
+            
             for start in range(2):
                 aslice = block[start::2]
                 channel = struct.unpack(form, aslice[:struct.calcsize(form)])
-                channels.append(channel)
+                channels.append(np.array(channel).reshape((xb, yb)))
 
             #print(row, col, feature['block_key'], type(feature['block_key']),
             #      feature['rasterband_id'],
@@ -130,17 +146,11 @@ class Raster(magic.Ball):
             row -= self.row
             col -= self.col
             size = self.size
-            xb = self.xblock
-            yb = self.yblock
 
             
             for grid, channel in zip(grids, channels):
 
-                ch = np.array(channel).reshape((xb, yb))
-                #plt.imshow(ch)
-                #await self.put()
-
-                grid[row * xb: (row + 1) * xb, col * yb: (col + 1) * yb] = ch
+                grid[row * xb: (row + 1) * xb, col * yb: (col + 1) * yb] = channel
 
             
             #counts = Counter(arow)

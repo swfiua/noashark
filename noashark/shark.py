@@ -79,7 +79,7 @@ class Shark:
             print(name)
 
         self.table_lookup = table_lookup
-        return
+        #return
 
         config = self.load_table(self.TABLES['config'])
         print(config.head())
@@ -118,16 +118,15 @@ def open_database(path, n):
     return gdal.ogr.Open(str(Path(path) / f'a{n:08x}.gdbtable'))
 
 
-def read_features(df):
+def generate_features(df):
     
     layer = df.GetLayer(0)
 
     data = []
     for item in range(layer.GetFeatureCount()):
         feature = layer.GetFeature(item + 1)
-        data.append(feature.items())
-        
-    return data
+        yield feature.items()
+
 
 if __name__ == '__main__':
 
