@@ -52,7 +52,7 @@ from matplotlib import pyplot as plt
 
 import geopandas
 
-class Shark:
+class Shark(magic.Ball):
 
     TABLES = dict(
         catalog=1,
@@ -63,13 +63,18 @@ class Shark:
     
     def __init__(self, path='.', name='MA'):
 
+        super().__init__()
+
         self.path = Path(path)
 
         self.depths = list(range(0, 11))
 
         self.name = name
+
+
+    async def start(self):
         
-        pprint(self.load_table(1).head(20))
+        pprint(self.load_table(1).head(self.topn))
 
         tables = self.load_table(self.TABLES['catalog'])
         print(tables.index)
@@ -88,12 +93,23 @@ class Shark:
         print(coords.head())
 
         layers = self.load_table(self.TABLES['layers'])
+
+
+    async def run(self):
         
+        # FIXME.  These come in fours ras, aux, blk and bnd.
+        # blk is the actual raster data.
+        # bnd has data about the geometry of the grid
+        # -- coords has more esoteric coordinate reference info.
         for database in sorted(self.path.glob('*.gdbtable')):
             print(database)
-            df = geopandas.read_file(database)
+            # maybe not do this, it can take a while
+            print('loading with geopandas may take a while')
+            df = geopandas.read_file(database, rows=self.topn)
 
-            print(df.head(20))
+            print(df.columns)
+            print(len(df))
+            print(df.head(self.topn))
 
     def load_table(self, n=1):
         """ Load a table """
@@ -130,4 +146,13 @@ def generate_features(df):
 
 if __name__ == '__main__':
 
-    Shark()
+    parser = magic.Parser()
+    parser.add_argument('-topn', type=int, default=20)
+
+    shark = Shark()
+    
+    shark.update(parser.parse_args())
+
+    magic.run(shark.start())
+    
+    magic.run(shark.run())

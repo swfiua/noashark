@@ -32,7 +32,7 @@ class Raster(magic.Ball):
 
         parser.add_argument('filenames', nargs='*')
 
-        args = parser.parse_args(None)
+        args = parser.parse_args(args)
 
         self.update(args)
 
@@ -48,25 +48,55 @@ class Raster(magic.Ball):
 
         print(db.name)
 
-        print('layers:', db.GetLayerCount())
+        print('layers (should only be one):', db.GetLayerCount())
 
         layer = db.GetLayer(0)
 
         lookup = {}
         for fix in range(layer.GetFeatureCount()):
             feature = layer.GetFeature(fix + 1)
+            print(feature.keys())
             lookup[(feature['row_nbr'], feature['col_nbr'])] = fix + 1
 
+        # just for curiosity
+        print(type(feature))
         return lookup
 
+
+    async def tile_map(self, lookup):
+
+        keys = list(lookup.keys())
+        print(keys)
+        rmin, rmax = min(x[0] for x in keys), max(x[0] for x in keys)
+        cmin, cmax = min(x[1] for x in keys), max(x[1] for x in keys)
+
+        area = np.zeros((2 + rmax, 2 + cmax))
+        print(area.shape)
+        print(rmin, rmax)
+        print(cmin, cmax)
+        for row, col in lookup.keys():
+            #print(row, col)
+            area[row-rmin][col-cmin] += 1
+        plt.imshow(area)
+        await self.put()
 
     async def run(self):
 
         db = gdal.ogr.Open(self.filenames[0])
 
         name = db.name
-        print(name)
+        import time
+        t1 = time.time()
         lookup = self.get_index(name)
+        t2 = time.time()
+        print('get index time', t2-t1)
+
+        await self.tile_map(lookup)
+        #return
+        
+        keys = list(lookup.keys())
+        print(min(keys[0]), max(keys[0]))
+        print(min(keys[1]), max(keys[1]))
 
         print('layers:', db.GetLayerCount())
 
@@ -91,7 +121,7 @@ class Raster(magic.Ball):
 
         #for fix in range(layer.GetFeatureCount()):
         for (row, col), fix in lookup.items():
-
+            print(row, col)
             
             #await magic.sleep(self.sleep * 0.001)
             # see above -- things would be quicker with the index
@@ -106,8 +136,10 @@ class Raster(magic.Ball):
 
             # fixme: need a mapping from {row, col} to feature index. this should speed things up
             # a fair bit.
+            t1 = time.time()
             feature = layer.GetFeature(fix)
-
+            t2 = time.time()
+            print('get feature time', t2-t1)
             area[row][col] += 1
 
             self.status = (fix, row, col)
@@ -142,7 +174,6 @@ class Raster(magic.Ball):
             #      feature['rrd_factor'])
             section[row][col] += 1
 
-
             row -= self.row
             col -= self.col
             size = self.size
@@ -175,10 +206,6 @@ class Raster(magic.Ball):
         self.filenames.rotate()
 
 
-async def run(fm):
-
-    await fm.start()
-    await fm.run()
 
 if __name__ == '__main__':
 
@@ -190,6 +217,8 @@ if __name__ == '__main__':
     fm = farm.Farm()
     fm.add(ras)
 
+    # ho hum, still no magic roundabout
     fm.shep.path.append(ras)
-
+    
+    farm.run(fm)
     magic.run(run(fm))
