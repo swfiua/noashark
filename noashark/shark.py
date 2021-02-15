@@ -42,6 +42,7 @@ from pathlib import Path
 import struct
 from collections import deque, Counter
 from pprint import pprint
+import time
 
 import gdal
 
@@ -61,19 +62,12 @@ class Shark(magic.Ball):
         layers=4,
     )
     
-    def __init__(self, path='.', name='MA'):
+    def start(self):
 
-        super().__init__()
+        self.path = Path(self.path)
 
-        self.path = Path(path)
+        self.depths = {}
 
-        self.depths = list(range(0, 11))
-
-        self.name = name
-
-
-    async def start(self):
-        
         pprint(self.load_table(1).head(self.topn))
 
         tables = self.load_table(self.TABLES['catalog'])
@@ -84,50 +78,74 @@ class Shark(magic.Ball):
             print(name)
 
         self.table_lookup = table_lookup
+        print(len(table_lookup))
         #return
 
-        config = self.load_table(self.TABLES['config'])
-        print(config.head())
+        self.config = self.load_table(self.TABLES['config']).to_dict()
 
-        coords = self.load_table(self.TABLES['coords'])
-        print(coords.head())
+        self.coords = self.load_table(self.TABLES['coords'])
+        print(self.coords.iloc[0])
 
         layers = self.load_table(self.TABLES['layers'])
+        print(layers.iloc[0])
+        print('XXXXXXXXXXXXXXX')
+
+        self.layers = {}
+        lastparms = None
+        for name, index in self.table_lookup.items():
+            #print(name, index)
+            if '_blk_' in name:
+                print(name, index)
+
+                print(f'Parms for {name} {index}')
+
+                parms = self.table_lookup[name.replace('_blk_', '_bnd_')]
+                
+                parms = self.load_table(parms).iloc[0].to_dict()
+
+                if lastparms:
+                    for key, value in parms.items():
+                        if lastparms[key] != value:
+                            print(key, value, lastparms[key])
+                    if parms != lastparms:
+                        print('parms differ')
+                lastparms = parms.copy()
 
 
-    async def run(self):
-        
-        # FIXME.  These come in fours ras, aux, blk and bnd.
-        # blk is the actual raster data.
-        # bnd has data about the geometry of the grid
-        # -- coords has more esoteric coordinate reference info.
-        for database in sorted(self.path.glob('*.gdbtable')):
-            print(database)
-            # maybe not do this, it can take a while
-            print('loading with geopandas may take a while')
-            df = geopandas.read_file(database, rows=self.topn)
+                # probably should just have one object for each table.
+                parms['index'] = index
+                parms['name'] = name
 
-            print(df.columns)
-            print(len(df))
-            print(df.head(self.topn))
+                pprint(parms)
+
+                layer = Layer(self.path, parms)
+                self.layers[name] = layer
+
+        self.dates()
+                    
+    def dates(self):
+
+        for layer in self.layers.values():
+            print(time.ctime(layer.cdate), time.ctime(layer.mdate))
 
     def load_table(self, n=1):
         """ Load a table """
         df = geopandas.read_file(self.path / f'a{n:08x}.gdbtable')
         return df
+    
 
-    def make_index(self):
+    def grid(self, lat=None, lon=None, size=None):
+        """ Return a dictionary of tiles for this location """
+        pass
 
-        for depth in self.depths:
-            df = self.get_table(depth)
+class Layer:
 
-    def get_table(depth):
+    def __init__(self, path, parms):
 
-        name = f'{self.name}_slrLdepth_{depth}ft'
+        self.__dict__.update(parms)
 
-        df = open_database(self.path, self.table_lookup[name])
-
-        return df
+        self.df = open_database(path, parms['index'])
+        
                                
 def open_database(path, n):
 
@@ -148,10 +166,14 @@ if __name__ == '__main__':
 
     parser = magic.Parser()
     parser.add_argument('-topn', type=int, default=20)
+    parser.add_argument('-name', default='MA')
+    parser.add_argument('-path', default='.')
 
     shark = Shark()
-    
-    shark.update(parser.parse_args())
+    args = parser.parse_args()
+    args.path = Path(args.path)
+
+    shark.update(args)
 
     magic.run(shark.start())
     
