@@ -121,12 +121,13 @@ class Shark(magic.Ball):
                 layer = Layer(self.path, parms)
                 self.layers[name] = layer
 
+        self.layers = deque(self.layers.items())
         self.dates()
                     
     def dates(self):
 
-        for layer in self.layers.values():
-            print(time.ctime(layer.cdate), time.ctime(layer.mdate))
+        for name, layer in self.layers:
+            print(time.ctime(layer.cdate), layer.mdate - layer.cdate)
 
     def load_table(self, n=1):
         """ Load a table """
@@ -137,6 +138,7 @@ class Shark(magic.Ball):
     def grid(self, lat=None, lon=None, size=None):
         """ Return a dictionary of tiles for this location """
         pass
+
 
 class Layer:
 
@@ -159,22 +161,26 @@ def generate_features(df):
     data = []
     for item in range(layer.GetFeatureCount()):
         feature = layer.GetFeature(item + 1)
-        yield feature.items()
-
+        yield feature
+        
 
 if __name__ == '__main__':
 
     parser = magic.Parser()
     parser.add_argument('-topn', type=int, default=20)
-    parser.add_argument('-name', default='MA')
+    parser.add_argument('-name', default='unknown')
     parser.add_argument('-path', default='.')
 
     shark = Shark()
+
+    # parse args and figure out what we need here
     args = parser.parse_args()
     args.path = Path(args.path)
 
+    # tell the shark what is going on
     shark.update(args)
 
+    # let it start and run
     magic.run(shark.start())
     
     magic.run(shark.run())
